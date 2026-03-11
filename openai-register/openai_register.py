@@ -22,175 +22,94 @@ import urllib.error
 
 from curl_cffi import requests
 
+from gptmail_client import GPTMailClient, GPTMailAPIError
+
 # ==========================================
-# Mail.tm 临时邮箱 API
+# GPTMail client helpers
 # ==========================================
 
-MAILTM_BASE = "https://api.mail.tm"
 
+def get_email_and_code_fetcher(proxies: Any = None):
+    base_url = os.environ.get("GPTMAIL_BASE_URL", "https://mail.chatgpt.org.uk")
+    api_key = os.environ.get("GPTMAIL_API_KEY", "").strip()
+    timeout = float(os.environ.get("GPTMAIL_TIMEOUT", "30") or 30)
+    prefix = os.environ.get("GPTMAIL_PREFIX") or None
+    domain = os.environ.get("GPTMAIL_DOMAIN") or None
 
-def _mailtm_headers(*, token: str = "", use_json: bool = False) -> Dict[str, Any]:
-    headers = {"Accept": "application/json"}
-    if use_json:
-        headers["Content-Type"] = "application/json"
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    return headers
+    if not api_key:
+        raise RuntimeError("GPTMAIL_API_KEY is required for registration")
 
+    client = GPTMailClient(base_url, api_key, timeout=timeout)
+    email = client.generate_email(prefix=prefix, domain=domain)
 
-def _mailtm_domains(proxies: Any = None) -> List[str]:
-    resp = requests.get(
-        f"{MAILTM_BASE}/domains",
-        headers=_mailtm_headers(),
-        proxies=proxies,
-        impersonate="chrome",
-        timeout=15,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"获取 Mail.tm 域名失败，状态码: {resp.status_code}")
-
-    data = resp.json()
-    domains = []
-    if isinstance(data, list):
-        items = data
-    elif isinstance(data, dict):
-        items = data.get("hydra:member") or data.get("items") or []
-    else:
-        items = []
-
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        domain = str(item.get("domain") or "").strip()
-        is_active = item.get("isActive", True)
-        is_private = item.get("isPrivate", False)
-        if domain and is_active and not is_private:
-            domains.append(domain)
-
-    return domains
-
-
-def get_email_and_token(proxies: Any = None) -> tuple:
-    """创建 Mail.tm 邮箱并获取 Bearer Token"""
-    try:
-        domains = _mailtm_domains(proxies)
-        if not domains:
-            print("[Error] Mail.tm 没有可用域名")
-            return "", ""
-        domain = random.choice(domains)
-
-        for _ in range(5):
-            local = f"oc{secrets.token_hex(5)}"
-            email = f"{local}@{domain}"
-            password = secrets.token_urlsafe(18)
-
-            create_resp = requests.post(
-                f"{MAILTM_BASE}/accounts",
-                headers=_mailtm_headers(use_json=True),
-                json={"address": email, "password": password},
-                proxies=proxies,
-                impersonate="chrome",
-                timeout=15,
-            )
-
-            if create_resp.status_code not in (200, 201):
-                continue
-
-            token_resp = requests.post(
-                f"{MAILTM_BASE}/token",
-                headers=_mailtm_headers(use_json=True),
-                json={"address": email, "password": password},
-                proxies=proxies,
-                impersonate="chrome",
-                timeout=15,
-            )
-
-            if token_resp.status_code == 200:
-                token = str(token_resp.json().get("token") or "").strip()
-                if token:
-                    return email, token
-
-        print("[Error] Mail.tm 邮箱创建成功但获取 Token 失败")
-        return "", ""
-    except Exception as e:
-        print(f"[Error] 请求 Mail.tm API 出错: {e}")
-        return "", ""
-
-
-def get_oai_code(token: str, email: str, proxies: Any = None) -> str:
-    """使用 Mail.tm Token 轮询获取 OpenAI 验证码"""
-    url_list = f"{MAILTM_BASE}/messages"
-    regex = r"(?<!\d)(\d{6})(?!\d)"
-    seen_ids: set[str] = set()
-
-    print(f"[*] 正在等待邮箱 {email} 的验证码...", end="", flush=True)
-
-    for _ in range(40):
-        print(".", end="", flush=True)
-        try:
-            resp = requests.get(
-                url_list,
-                headers=_mailtm_headers(token=token),
-                proxies=proxies,
-                impersonate="chrome",
-                timeout=15,
-            )
-            if resp.status_code != 200:
-                time.sleep(3)
-                continue
-
-            data = resp.json()
-            if isinstance(data, list):
-                messages = data
-            elif isinstance(data, dict):
-                messages = data.get("hydra:member") or data.get("messages") or []
-            else:
-                messages = []
-
-            for msg in messages:
-                if not isinstance(msg, dict):
+    def fetch_code(timeout_sec: int = 180, poll: float = 5.0) -> str | None:
+        regex = r"(?<!\d)(\d{6})(?!\d)"
+        start = time.monotonic()
+        seen_ids: set[str] = set()
+        while time.monotonic() - start < timeout_sec:
+            try:
+                summaries = client.list_emails(email)
+            except GPTMailAPIError:
+                summaries = []
+            for summary in summaries:
+                email_id = _extract_email_id(summary)
+                if not email_id or email_id in seen_ids:
                     continue
-                msg_id = str(msg.get("id") or "").strip()
-                if not msg_id or msg_id in seen_ids:
+                seen_ids.add(email_id)
+                try:
+                    detail = client.get_email(email_id)
+                except GPTMailAPIError:
                     continue
-                seen_ids.add(msg_id)
-
-                read_resp = requests.get(
-                    f"{MAILTM_BASE}/messages/{msg_id}",
-                    headers=_mailtm_headers(token=token),
-                    proxies=proxies,
-                    impersonate="chrome",
-                    timeout=15,
-                )
-                if read_resp.status_code != 200:
-                    continue
-
-                mail_data = read_resp.json()
-                sender = str(
-                    ((mail_data.get("from") or {}).get("address") or "")
-                ).lower()
-                subject = str(mail_data.get("subject") or "")
-                intro = str(mail_data.get("intro") or "")
-                text = str(mail_data.get("text") or "")
-                html = mail_data.get("html") or ""
-                if isinstance(html, list):
-                    html = "\n".join(str(x) for x in html)
-                content = "\n".join([subject, intro, text, str(html)])
-
-                if "openai" not in sender and "openai" not in content.lower():
-                    continue
-
-                m = re.search(regex, content)
+                blob = "\n".join(_iter_strings(summary)) + "\n" + "\n".join(_iter_strings(detail))
+                m = re.search(regex, blob)
                 if m:
-                    print(" 抓到啦! 验证码:", m.group(1))
                     return m.group(1)
-        except Exception:
-            pass
+            time.sleep(poll)
+        return None
 
-        time.sleep(3)
+    return email, fetch_code
 
-    print(" 超时，未收到验证码")
-    return ""
+
+def _iter_strings(obj: Any) -> list[str]:
+    out: list[str] = []
+
+    def _walk(v: Any) -> None:
+        if v is None:
+            return
+        if isinstance(v, str):
+            if v:
+                out.append(v)
+            return
+        if isinstance(v, bytes):
+            try:
+                s = v.decode("utf-8", errors="replace")
+            except Exception:
+                return
+            if s:
+                out.append(s)
+            return
+        if isinstance(v, dict):
+            for vv in v.values():
+                _walk(vv)
+            return
+        if isinstance(v, (list, tuple)):
+            for vv in v:
+                _walk(vv)
+            return
+
+    _walk(obj)
+    return out
+
+
+def _extract_email_id(summary: dict[str, Any]) -> str | None:
+    for key in ("id", "_id", "email_id", "emailId", "message_id", "messageId", "mail_id", "mailId"):
+        v = summary.get(key)
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return None
 
 
 # ==========================================
@@ -442,10 +361,15 @@ def run(proxy: Optional[str]) -> Optional[str]:
         print(f"[Error] 网络连接检查失败: {e}")
         return None
 
-    email, dev_token = get_email_and_token(proxies)
-    if not email or not dev_token:
+    try:
+        # 使用 GPTMail 获取邮箱 + 验证码获取器
+        email, code_fetcher = get_email_and_code_fetcher(proxies)
+        if not email or not code_fetcher:
+            return None
+        print(f"[*] 成功获取 GPTMail 邮箱: {email}")
+    except Exception as e:
+        print(f"[Error] 获取 GPTMail 邮箱失败: {e}")
         return None
-    print(f"[*] 成功获取 Mail.tm 邮箱与授权: {email}")
 
     oauth = generate_oauth_url()
     url = oauth.auth_url
@@ -500,8 +424,9 @@ def run(proxy: Optional[str]) -> Optional[str]:
         )
         print(f"[*] 验证码发送状态: {otp_resp.status_code}")
 
-        code = get_oai_code(dev_token, email, proxies)
+        code = code_fetcher()
         if not code:
+            print("[Error] 未能从 GPTMail 收到验证码")
             return None
 
         code_body = f'{{"code":"{code}"}}'
