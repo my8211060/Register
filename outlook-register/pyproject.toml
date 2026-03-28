@@ -5,7 +5,7 @@ description = "Outlook 自动注册脚本"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "playwright",
+    "patchright",
     "requests",
     "faker",
 ]
