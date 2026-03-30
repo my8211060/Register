@@ -27,13 +27,17 @@ except Exception:
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
 
-LUCKMAIL_BASE_URL = str(os.getenv("LUCKMAIL_BASE_URL") or "https://mails.luckyous.com").strip().rstrip("/")
-LUCKMAIL_API_KEY = str(os.getenv("LUCKMAIL_API_KEY") or "").strip()
-LUCKMAIL_API_SECRET = str(os.getenv("LUCKMAIL_API_SECRET") or "").strip()
-LUCKMAIL_USE_HMAC = str(os.getenv("LUCKMAIL_USE_HMAC") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
-LUCKMAIL_PROJECT_CODE = str(os.getenv("LUCKMAIL_PROJECT_CODE") or "grok").strip()
-LUCKMAIL_EMAIL_TYPE = str(os.getenv("LUCKMAIL_EMAIL_TYPE") or "ms_graph").strip()
-LUCKMAIL_DOMAIN = str(os.getenv("LUCKMAIL_DOMAIN") or "outlook.com").strip()
+
+def _luckmail_settings() -> dict:
+    return {
+        "base_url": str(os.getenv("LUCKMAIL_BASE_URL") or "https://mails.luckyous.com").strip().rstrip("/"),
+        "api_key": str(os.getenv("LUCKMAIL_API_KEY") or "").strip(),
+        "api_secret": str(os.getenv("LUCKMAIL_API_SECRET") or "").strip(),
+        "use_hmac": str(os.getenv("LUCKMAIL_USE_HMAC") or "").strip().lower() in {"1", "true", "yes", "y", "on"},
+        "project_code": str(os.getenv("LUCKMAIL_PROJECT_CODE") or "grok").strip(),
+        "email_type": str(os.getenv("LUCKMAIL_EMAIL_TYPE") or "ms_graph").strip(),
+        "domain": str(os.getenv("LUCKMAIL_DOMAIN") or "outlook.com").strip(),
+    }
 
 
 class GPTMailClient:
@@ -193,14 +197,15 @@ class EmailService:
     def create_email(self):
         if self.provider == "luckmail":
             try:
+                settings = _luckmail_settings()
                 inbox = LuckMailInbox(
-                    base_url=LUCKMAIL_BASE_URL,
-                    api_key=LUCKMAIL_API_KEY,
-                    api_secret=LUCKMAIL_API_SECRET,
-                    use_hmac=LUCKMAIL_USE_HMAC,
-                    project_code=LUCKMAIL_PROJECT_CODE,
-                    email_type=LUCKMAIL_EMAIL_TYPE,
-                    domain=LUCKMAIL_DOMAIN,
+                    base_url=settings["base_url"],
+                    api_key=settings["api_key"],
+                    api_secret=settings["api_secret"],
+                    use_hmac=settings["use_hmac"],
+                    project_code=settings["project_code"],
+                    email_type=settings["email_type"],
+                    domain=settings["domain"],
                 )
                 token_like, email = inbox.create_email()
                 print(f"[+] LuckMail 邮箱已购买: {email}")

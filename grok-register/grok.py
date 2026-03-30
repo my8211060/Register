@@ -6,10 +6,10 @@ from curl_cffi import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from email_service import EmailService
 from YesCaptcha_service import TurnstileService
-
-load_dotenv()
 
 # 基础配置
 site_url = "https://accounts.x.ai"
