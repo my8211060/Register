@@ -68,7 +68,7 @@ tavily-register/
 ├── mail_provider.py                   # 临时邮箱 provider 工厂
 ├── luckmail_provider.py               # LuckMail 订单和验证链接封装
 ├── outlook_tw_provider.py             # outlook.tw 匿名邮箱 API 封装
-├── LuckMailSdk-Python/                # LuckMail SDK
+├── luckmail/                # LuckMail SDK
 ├── tavily_automation.py               # 注册、验证、登录和 Key 获取流程
 ├── email_checker.py                   # Tavily 验证后登录和 API Key 页面操作
 ├── main.py                            # 命令行入口
