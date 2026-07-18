@@ -35,7 +35,7 @@ def _luckmail_settings() -> dict:
         "api_secret": str(os.getenv("LUCKMAIL_API_SECRET") or "").strip(),
         "use_hmac": str(os.getenv("LUCKMAIL_USE_HMAC") or "").strip().lower() in {"1", "true", "yes", "y", "on"},
         "project_code": str(os.getenv("LUCKMAIL_PROJECT_CODE") or "grok").strip(),
-        "email_type": str(os.getenv("LUCKMAIL_EMAIL_TYPE") or "ms_graph").strip(),
+        "email_type": str(os.getenv("LUCKMAIL_EMAIL_TYPE") or "ms_imap").strip(),
         "domain": str(os.getenv("LUCKMAIL_DOMAIN") or "outlook.com").strip(),
     }
 
@@ -105,7 +105,7 @@ class LuckMailInbox:
         api_secret: str = "",
         use_hmac: bool = False,
         project_code: str = "grok",
-        email_type: str = "ms_graph",
+        email_type: str = "ms_imap",
         domain: str = "outlook.com",
         timeout: int = 30,
     ):
@@ -124,7 +124,7 @@ class LuckMailInbox:
             timeout=float(timeout),
         )
         self.project_code = project_code or "grok"
-        self.email_type = email_type or "ms_graph"
+        self.email_type = email_type or "ms_imap"
         self.domain = domain or "outlook.com"
         self.address = ""
         self.token = ""

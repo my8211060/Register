@@ -45,7 +45,7 @@ THREADS="1"
 LUCKMAIL_API_SECRET=""
 LUCKMAIL_USE_HMAC="false"
 LUCKMAIL_PROJECT_CODE="grok"
-LUCKMAIL_EMAIL_TYPE="ms_graph"
+LUCKMAIL_EMAIL_TYPE="ms_imap"
 LUCKMAIL_DOMAIN="outlook.com"
 ```
 
@@ -81,7 +81,7 @@ uv run python grok.py --email-provider luckmail --threads 8
 - `LUCKMAIL_BASE_URL`：LuckMail 平台地址，默认内置为 `https://mails.luckyous.com`；只有使用别的 LuckMail 站点时才需要设置。
 - `LUCKMAIL_API_KEY`：LuckMail API Key，使用 `luckmail` 时必填。
 - `LUCKMAIL_API_SECRET` / `LUCKMAIL_USE_HMAC`：LuckMail 可选 HMAC 鉴权配置。
-- `LUCKMAIL_PROJECT_CODE` / `LUCKMAIL_EMAIL_TYPE` / `LUCKMAIL_DOMAIN`：LuckMail 购买邮箱参数，默认分别为 `grok` / `ms_graph` / `outlook.com`。
+- `LUCKMAIL_PROJECT_CODE` / `LUCKMAIL_EMAIL_TYPE` / `LUCKMAIL_DOMAIN`：LuckMail 购买邮箱参数，默认分别为 `grok` / `ms_imap` / `outlook.com`。
 
 ## 输出位置
 
